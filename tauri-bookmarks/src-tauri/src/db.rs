@@ -13,6 +13,15 @@ pub struct Bookmark {
     pub created_at: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Filter {
+    All,
+    Unread,
+    Favorites,
+    ByTag(String),
+    Search(String),
+}
+
 pub struct Database {
     pub conn: Mutex<Connection>,
 }
@@ -57,12 +66,25 @@ impl Database {
         )?)
     }
 
-    pub fn list_bookmarks(&self) -> Result<Vec<Bookmark>> {
+    pub fn list_bookmarks(&self, filter: Filter) -> Result<Vec<Bookmark>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, title, url, tags, read, favorited, created_at FROM bookmarks ORDER BY created_at DESC"
-        )?;
-        let rows = stmt.query_map([], |row| Ok(Bookmark {
+        
+        let (sql, pattern) = match &filter {
+        Filter::All => ("WHERE 1=1".to_string(), None),
+        Filter::Unread => ("WHERE read = 0".to_string(), None),
+        Filter::Favorites => ("WHERE favorited = 1".to_string(), None),
+        Filter::ByTag(tag) => ("WHERE tags LIKE ?1".to_string(), Some(format!("%{}%", tag))),
+        Filter::Search(q) => ("WHERE (title LIKE ?1 OR url LIKE ?1 OR tags LIKE ?1)".to_string(), Some(format!("%{}%", q))),
+        };
+
+        let full_sql = format!(
+        "SELECT id, title, url, tags, read, favorited, created_at FROM bookmarks {} ORDER BY created_at DESC",
+        sql
+        );
+
+        let mut stmt = conn.prepare(&full_sql)?;
+        
+        let mapper = |row: &rusqlite::Row| Ok(Bookmark {
             id: row.get(0)?,
             title: row.get(1)?,
             url: row.get(2)?,
@@ -70,7 +92,13 @@ impl Database {
             read: row.get::<_, i32>(4)? != 0,
             favorited: row.get::<_, i32>(5)? != 0,
             created_at: row.get(6)?,
-        }))?;
+        });
+
+        let rows = if let Some(ref p) = pattern {
+            stmt.query_map([p], mapper)?
+        } else {
+            stmt.query_map([], mapper)?
+        };
         rows.collect()
     }
 

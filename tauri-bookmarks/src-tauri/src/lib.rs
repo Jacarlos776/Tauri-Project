@@ -1,6 +1,6 @@
 mod db;
 
-use db::{Bookmark, Database};
+use db::{Bookmark, Database, Filter};
 use tauri::{Manager, State};
 
 #[tauri::command]
@@ -14,8 +14,8 @@ fn add_bookmark(db: State<Database>, title: String, url: String, tags: String) -
 }
 
 #[tauri::command]
-fn list_bookmarks(db: State<Database>) -> Result<Vec<Bookmark>, String> {
-    db.list_bookmarks().map_err(|e| e.to_string())
+fn list_bookmarks(db: State<Database>, filter: Filter) -> Result<Vec<Bookmark>, String> {
+    db.list_bookmarks(filter).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

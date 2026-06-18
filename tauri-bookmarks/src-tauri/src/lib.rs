@@ -1,7 +1,7 @@
 mod db;
 
 use db::{Bookmark, Database};
-use tauri::State;
+use tauri::{Manager, State};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -39,11 +39,18 @@ fn update_bookmark(db: State<Database>, id:i64, title: String, url: String, tags
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let db = Database::new("bookmarks.db").expect("Failed to open database");
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(db)
+        .setup(|app| {
+            let db_path = app.path().app_data_dir()
+                .expect("Failed to get app data dir")
+                .join("bookmarks.db");
+            std::fs::create_dir_all(db_path.parent().unwrap()).ok();
+            let db = Database::new(db_path.to_str().unwrap())
+                .expect("Failed to open database");
+            app.manage(db);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![greet, add_bookmark, list_bookmarks, toggle_read, toggle_favorite, delete_bookmark, update_bookmark])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

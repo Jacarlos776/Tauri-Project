@@ -17,6 +17,10 @@ function App() {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [tags, setTags] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [editTags, setEditTags] = useState("");
 
   async function load() {
     setBookmarks(await invoke("list_bookmarks"));
@@ -31,6 +35,38 @@ function App() {
     load();
   }
 
+  async function toggleRead(id: number) {
+    await invoke("toggle_read", { id });
+    load();
+  }
+
+  async function toggleFavorite(id: number) {
+    await invoke("toggle_favorite", { id });
+    load();
+  }
+
+  async function deleteBookmark(id: number) {
+    await invoke("delete_bookmark", { id });
+    load();
+  }
+
+  function startEdit(b: Bookmark) {
+    setEditing(b.id);
+    setEditTitle(b.title);
+    setEditUrl(b.url);
+    setEditTags(b.tags);
+  }
+
+  async function saveEdit(id: number) {
+    await invoke("update_bookmark", { id, title: editTitle, url: editUrl, tags: editTags });
+    setEditing(null);
+    load();
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+  }
+
   return (
     <main>
       <h1>Bookmarks</h1>
@@ -42,9 +78,25 @@ function App() {
       </form>
       <ul>
         {bookmarks.map(b => (
-          <li key={b.id}>
-            <a href={b.url} target="_blank" rel="noreferrer">{b.title}</a>
-            {b.tags && <span> — {b.tags}</span>}
+          <li key={b.id} style={{ opacity: b.read ? 0.6 : 1 }}>
+            {editing === b.id ? (
+              <div>
+                <input value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+                <input value={editUrl} onChange={e => setEditUrl(e.target.value)} />
+                <input value={editTags} onChange={e => setEditTags(e.target.value)} />
+                <button onClick={() => saveEdit(b.id)}>Save</button>
+                <button onClick={cancelEdit}>Cancel</button>
+              </div>
+            ) : (
+              <div>
+                <a href={b.url} target="_blank" rel="noreferrer">{b.title}</a>
+                {b.tags && <span> — {b.tags}</span>}
+                <button onClick={() => toggleRead(b.id)}>{b.read ? "Unread" : "Read"}</button>
+                <button onClick={() => toggleFavorite(b.id)}>{b.favorited ? "★" : "☆"}</button>
+                <button onClick={() => deleteBookmark(b.id)}>Delete</button>
+                <button onClick={() => startEdit(b)}>Edit</button>
+              </div>
+            )}
           </li>
         ))}
       </ul>
